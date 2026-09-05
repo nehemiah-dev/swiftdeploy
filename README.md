@@ -1,18 +1,65 @@
-# swiftdeploy
+# SwiftDeploy
 
-Manifest-driven nginx + Docker deployment tool. Define your service in `manifest.yaml`, and swiftdeploy generates the configs, brings up the stack, and manages deployments.
+**SwiftDeploy is a manifest-driven deployment tool for containerized applications.**
+
+Define your application once in a simple `manifest.yaml`, and SwiftDeploy handles the repetitive work of preparing the deployment, validating the environment, starting the application, and verifying that it is healthy.
+
+Instead of manually managing Docker Compose and Nginx configuration for every deployment, you describe what you want and let SwiftDeploy generate and manage it.
+
+---
+
+## Why SwiftDeploy?
+
+Deploying a small application often means maintaining several pieces of configuration:
+
+* Container configuration
+* Reverse proxy configuration
+* Networking
+* Environment settings
+* Health checks
+* Deployment state
+
+SwiftDeploy brings these into a single manifest and turns them into a repeatable deployment workflow.
+
+```text
+             manifest.yaml
+                   │
+                   ▼
+             ┌─────────────┐
+             │ SwiftDeploy │
+             └──────┬──────┘
+                    │
+          ┌─────────┼─────────┐
+          ▼         ▼         ▼
+       Generate   Validate   Deploy
+       configs    setup      service
+                              │
+                              ▼
+                         Health Check
+```
+
+## Features
+
+* Manifest-driven deployments
+* Automatic configuration generation
+* Pre-deployment validation
+* Docker-based application deployment
+* Health-aware deployments
+* Stable and canary deployment modes
+* Simple promotion between deployment modes
+* Clean teardown of deployed resources
 
 ---
 
 ## Requirements
 
-- Python 3.11+
-- [uv](https://github.com/astral-sh/uv)
-- Docker
+* Python 3.11+
+* [uv](https://github.com/astral-sh/uv)
+* Docker
 
 ---
 
-## Setup
+## Installation
 
 ```bash
 git clone https://github.com/nehecodes/swiftdeploy.git
@@ -26,21 +73,17 @@ uv pip install -e swiftdeploy/
 
 ---
 
-## manifest.yaml
+## Quick Start
 
-Place this at the project root and edit to match your service:
+Create a `manifest.yaml` in your project:
 
 ```yaml
-meta:
-  service: my-app
-  contact: your-mail@example.com
-
 services:
   name: my-app
   image: my-app:latest
   port: 8080
   env:
-    mode: stable           # stable or canary
+    mode: stable
   health_path: /healthz
 
 nginx:
@@ -53,62 +96,118 @@ network:
   driver_type: bridge
 ```
 
+Then deploy:
+
+```bash
+swiftdeploy deploy
+```
+
+SwiftDeploy will:
+
+1. Generate the required configuration
+2. Validate the deployment
+3. Start the application
+4. Wait for the health check
+5. Confirm that the service is ready
+
 ---
 
-## Subcommands
+## Commands
 
-### `init`
-Generates `nginx.conf` and `docker-compose.yaml` from the manifest.
+### Initialize
+
+Generate the deployment configuration from the manifest.
 
 ```bash
 swiftdeploy init
 ```
 
-### `validate`
-Runs 5 pre-flight checks before deploying. Exits non-zero on any failure.
+### Validate
+
+Run pre-deployment checks without starting the application.
 
 ```bash
 swiftdeploy validate
 ```
 
-| Check | What it verifies |
-|---|---|
-| manifest.yaml exists and is valid YAML | File exists and parses cleanly |
-| All required fields present | No empty or missing fields |
-| Docker image exists locally | `docker image inspect` passes |
-| Nginx port is not already bound | Port is free on the host |
-| nginx.conf is syntactically valid | `nginx -t` or docker equivalent |
+SwiftDeploy checks the manifest, required configuration, Docker image, network availability, and generated configuration before deployment.
 
-### `deploy`
-Runs `init` → `validate` → `docker compose up`, then blocks until `/healthz` responds or timeout is reached.
+### Deploy
+
+Prepare and start the application, then wait for it to become healthy.
 
 ```bash
 swiftdeploy deploy
-swiftdeploy deploy --timeout 90   # default: 60s
 ```
 
-### `promote`
-Switches deployment mode. Updates `mode` in `manifest.yaml`, regenerates `docker-compose.yaml` with the new `MODE` env var, restarts only the app container, then confirms via `/healthz`.
+You can also specify a custom timeout:
+
+```bash
+swiftdeploy deploy --timeout 90
+```
+
+### Promote
+
+Switch between deployment modes.
 
 ```bash
 swiftdeploy promote canary
-swiftdeploy promote stable    # revert
+swiftdeploy promote stable
 ```
 
-### `teardown`
-Stops and removes all containers, networks, and volumes.
+This allows a running application to be moved between stable and canary modes without manually editing generated configuration.
+
+### Teardown
+
+Stop and remove the deployed application and its resources.
 
 ```bash
 swiftdeploy teardown
-swiftdeploy teardown --clean   # also deletes nginx.conf + docker-compose.yaml
+```
+
+To also remove generated configuration:
+
+```bash
+swiftdeploy teardown --clean
 ```
 
 ---
 
-## Custom manifest path
+## Custom Manifests
 
-All subcommands accept `--manifest` to point at a non-default file:
+SwiftDeploy can use a manifest other than the default `manifest.yaml`:
 
 ```bash
 swiftdeploy --manifest config/prod.yaml deploy
 ```
+
+---
+
+## Deployment Model
+
+SwiftDeploy separates **what you want to deploy** from **how the deployment is configured**.
+
+The manifest describes the application:
+
+```text
+Application
+├── Service
+├── Image
+├── Port
+├── Environment
+├── Health check
+├── Network
+└── Proxy configuration
+```
+
+SwiftDeploy turns that definition into the configuration required to run the service.
+
+This makes deployments more **repeatable, predictable, and easier to manage**.
+
+---
+
+## Project Status
+
+SwiftDeploy is an actively developed deployment automation project focused on making containerized application deployments simpler and more repeatable.
+
+The long-term goal is to provide a lightweight deployment workflow that bridges the gap between a Dockerized application and a production-ready deployment without requiring developers to manually manage every piece of infrastructure configuration.
